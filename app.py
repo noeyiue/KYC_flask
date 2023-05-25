@@ -14,7 +14,7 @@ from insightface.data import get_image as ins_get_image
 import os
 
 import easyocr
-from pyzbar.pyzbar import decode
+
 
 import re
 
@@ -27,15 +27,13 @@ from dotenv import load_dotenv
 
 import json
 
-
-
 assert insightface.__version__ >= '0.3'
 
 app = Flask(__name__)
 
 
 def check_idcard(timestamp ,idfile, id_num, th_fname, th_lname, en_fname, en_lname) :
-
+    print("Start OCR")
     th_fname = th_fname.lower()
     th_lname = th_lname.lower()
     en_fname = en_fname.lower()
@@ -44,7 +42,7 @@ def check_idcard(timestamp ,idfile, id_num, th_fname, th_lname, en_fname, en_lna
     nocr = []
     data = [0, 0, 0, 0, 0]
 
-    reader = easyocr.Reader(['th','en'])
+    reader = easyocr.Reader(['th','en'], gpu=False)
     for i in range(4) :
         pocr = reader.readtext(idfile, detail=0, paragraph=True)
         target_words = ['thai', 'national', 'id', 'card', 'เลขประจำตัวประชาชน']
@@ -123,6 +121,8 @@ def handle_heic(file) :
     return temp_file.name
 
 def detect_face(img, name) :
+    print("Start detect Face")
+
     parser = argparse.ArgumentParser(description='insightface app test')
     parser.add_argument('--ctx', default=0, type=int,
                         help='ctx id, <0 means using cpu')
@@ -215,6 +215,7 @@ def load_img_s3(key):
 
 @app.route('/valid/front', methods=['POST'])
 def valid_front_data():
+    print("Start")
 
     timestamp = int(time.time())    
 
@@ -227,6 +228,8 @@ def valid_front_data():
 
 
     image = load_img_s3(img_path)
+    print("load")
+
     file_path = f"id_{timestamp}.jpg"
     image.save(file_path)
 
@@ -331,7 +334,10 @@ def insight_face() :
     os.remove(f"face_{timestamp}.jpg")
     return jsonify({'sims': float(sims)})
 
+@app.route("/")
+def index():
+    return "Hello World!"
 
 
 if __name__ == "__main__" :
-    app.run(debug=True)
+    app.run(debug=True, port=5000, host="0.0.0.0")
