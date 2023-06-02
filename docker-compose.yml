@@ -1,0 +1,12 @@
+version: '3'
+services:
+  flask:
+    build:
+      context: ./flask 
+    ports:
+      - 8000:5000  
+      
+networks: 
+  default: 
+    external: 
+      name: network-stack
