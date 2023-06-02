@@ -21,6 +21,7 @@ import re
 import Levenshtein
 
 import boto3
+from botocore.config import Config
 import pyheif
 import io
 from dotenv import load_dotenv
@@ -32,8 +33,19 @@ assert insightface.__version__ >= '0.3'
 app = Flask(__name__)
 
 
+def reduce_pixel_size(image_path, reduction_factor):
+    image = Image.open(image_path)
+
+    width, height = image.size
+    new_width = width // reduction_factor
+    new_height = height // reduction_factor
+
+    resized_image = image.resize((new_width, new_height), Image.LANCZOS)
+
+    return resized_image
+
 def check_idcard(timestamp ,idfile, id_num, th_fname, th_lname, en_fname, en_lname) :
-    print("Start OCR")
+
     th_fname = th_fname.lower()
     th_lname = th_lname.lower()
     en_fname = en_fname.lower()
@@ -41,14 +53,23 @@ def check_idcard(timestamp ,idfile, id_num, th_fname, th_lname, en_fname, en_lna
 
     nocr = []
     data = [0, 0, 0, 0, 0]
+    # data = [0, 0, 0]
 
+    # model_storage_directory = './models'
     reader = easyocr.Reader(['th','en'], gpu=False)
+    # reader = easyocr.Reader(['th','en'], model_storage_directory=model_storage_directory, download_enabled=False)
+    # reader = easyocr.Reader(['en'], model_storage_directory=model_storage_directory, download_enabled=False)
+
     for i in range(4) :
         pocr = reader.readtext(idfile, detail=0, paragraph=True)
+        print(pocr)
+        # target_words = ['thai', 'national', 'id', 'card']
         target_words = ['thai', 'national', 'id', 'card', 'เลขประจำตัวประชาชน']
+
         contains_word = False
         for text_result in pocr:
             split_result = re.split("\s", text_result)
+            split_result = [x.lower() for x in split_result]
             for word in target_words:
                 if word in split_result:
                     contains_word = True
@@ -66,9 +87,6 @@ def check_idcard(timestamp ,idfile, id_num, th_fname, th_lname, en_fname, en_lna
     ocr = reader.readtext(idfile)
 
     num_pattern = r'^-?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?$'
-    for item in ocr :
-        coordinates, text, value = item
-        print(text)
 
     for item in ocr :
         coordinates, text, value = item
@@ -97,9 +115,11 @@ def check_idcard(timestamp ,idfile, id_num, th_fname, th_lname, en_fname, en_lna
             data[2] = coordinates
             print(f"{th_lname} - {text} = {th_lname_distance}")
         if (en_fname_distance <= 2) : 
+            # data[1] = coordinates
             data[3] = coordinates
             print(f"{en_fname} - {text} = {en_fname_distance}")
         if (en_lname_distance <= 2) : 
+            # data[2] = coordinates
             data[4] = coordinates
             print(f"{en_lname} - {text} = {en_lname_distance}")
 
@@ -131,7 +151,7 @@ def detect_face(img, name) :
     app = FaceAnalysis()
     app.prepare(ctx_id=args.ctx, det_size=(args.det_size, args.det_size))
     faces = app.get(img)
-    bounding_box = faces[0].bbox.astype(np.int64)
+    bounding_box = faces[0].bbox.astype(int)
 
     rimg = app.draw_on(img, faces)
     cv2.imwrite(f"./{name}.jpg", rimg)
@@ -178,13 +198,18 @@ def find_edge(box) :
 def check_rectangles(top, bot, detect_word):
     x1_big, y1_big = top
     x2_big, y2_big = bot 
+    error = 0
     for rectangle in detect_word:
-        for corner in rectangle:
-            x, y = corner
-            # Accept a little bit error because when find a edges can have some error
-            if x < x1_big and x > x2_big and y < y1_big and y > y2_big:
-                return False
-
+        if isinstance(rectangle, list) and len(rectangle) == 4:
+            for corner in rectangle:
+                x, y = corner
+                # Accept a little bit error because when find a edges can have some error
+                if x < x1_big and x > x2_big and y < y1_big and y > y2_big:
+                    return False
+        else: 
+            error = error + 1
+    if (error > 1) :
+        return False
     return True
 
 def load_img_s3(key):
@@ -232,6 +257,9 @@ def valid_front_data():
 
     file_path = f"id_{timestamp}.jpg"
     image.save(file_path)
+    reduction_factor = 2
+    resized_image = reduce_pixel_size(file_path, reduction_factor)
+    resized_image.save(f"id_{timestamp}.jpg")
 
     id = cv2.imread(f'./id_{timestamp}.jpg')
     data = check_idcard(timestamp ,id, id_num, th_fname, th_lname, en_fname, en_lname)
