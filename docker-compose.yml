@@ -5,6 +5,8 @@ services:
       context: .
     ports:
       - 8000:5000  
+    env_file:
+      - .env
 
 networks: 
   default: 
