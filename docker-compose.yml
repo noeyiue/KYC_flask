@@ -2,10 +2,10 @@ version: '3'
 services:
   flask:
     build:
-      context: ./flask 
+      context: .
     ports:
       - 8000:5000  
-      
+
 networks: 
   default: 
     external: 
