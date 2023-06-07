@@ -46,6 +46,8 @@ def reduce_pixel_size(image_path, reduction_factor):
 
 def check_idcard(timestamp ,idfile, id_num, th_fname, th_lname, en_fname, en_lname) :
 
+    print(id_num)
+
     th_fname = th_fname.lower()
     th_lname = th_lname.lower()
     en_fname = en_fname.lower()
@@ -263,10 +265,10 @@ def valid_front_data():
 
     id = cv2.imread(f'./id_{timestamp}.jpg')
     data = check_idcard(timestamp ,id, id_num, th_fname, th_lname, en_fname, en_lname)
-    if data == None :
+    if data == [0,0,0,0,0] :
         response = {'Error': "Don't have data on image"}
         os.remove(f"id_{timestamp}.jpg")
-        return jsonify(response), 500
+        return jsonify(response), 501
     print(data)
 
     # img = Image.open(f"id_{timestamp}.jpg")
@@ -319,14 +321,14 @@ def valid_back_data():
     result = reader.readtext(pic, detail = 0, paragraph=True)
     if not result :
         os.remove(f"back_{timestamp}.jpg")
-        return jsonify({'error': 'Cannot find Laser code from id'}), 404
+        return jsonify({'error': 'Cannot find Laser code from id'}), 501
 
     lasercode_pattern = r'[a-zA-Z]{2}\d{1}-\d{7}-\d{2}'
     for txt in result :
         laser_code = re.search(lasercode_pattern, txt)
     if not laser_code :
         os.remove(f"back_{timestamp}.jpg")
-        return jsonify({'error': 'Cannot find Laser code from id'}), 404
+        return jsonify({'error': 'Cannot find Laser code from id'}), 501
     os.remove(f"back_{timestamp}.jpg")
     return jsonify({'laser_code' : laser_code.group()})
 
